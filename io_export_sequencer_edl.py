@@ -14,14 +14,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 # io_export_sequencer_edl.py -- Export of CMX 3600 Edit Decision List ("EDL") files.
-# by Tintwotin
-
-# Additional functions by Campbell Barton, William R. Zwicky, szaszak and
-# 'operator_file_export.py'.
 
 # HOW TO: Collect all video in one track and all audio in as few tracks as possible.
 # NB: Only Movie, cross dissolves and audio are supported in exports.
 # NB: Drop frame not supported.
+# NB: Only one Video track and four audiotracks are supported. Flatten you project.
 
 # Missing: add try and execept to list for out of bounce errors. Maybe not needed since transitions can only exist in time line with a previous and a nex clip.
 # Missing: Detect dropframe rates - and stop export
@@ -35,13 +32,13 @@ import sys
 
 bl_info = {
     "name": "Export EDL",
-    "author": "Tintwotin",
+    "author": "Tintwotin, Campbell Barton, William R. Zwicky & szaszak",
     "version": (0, 5),
     "blender": (2, 78, 0),
     "location": "File > Export > Timeline (.edl)",
     "description": "Save a CMX formatted EDL from the Timeline",
-    "warning": "",
-    "wiki_url": ""
+    "warning": "Flatten VSE project to max. one video channel and four audio channels",
+    "wiki_url": "https://github.com/tin2tin/ExportEDL"
                 "",
     "category": "Import-Export",
 }
@@ -211,7 +208,7 @@ class EDLBlock:
         """Reference to media file or tape.
            Officially: 4-digit num, optional B; or BL for black,
            or AX for aux source.
-           Unofficially: any string."""
+           Unofficially: any string. 8 char. wide"""
         self.channels = None
         """A=audio1,V=video1,B=A+V,A2=audio2,A2/V=A2+V,AA=A1+A2,AA/V=A1+A2+V"""
         self.transition = None
@@ -255,7 +252,7 @@ class EDL(list):
         # Export from Premiere:
         #   003  AX       AA    C        00:00:00:10 00:02:03:24 00:00:53:25 00:02:57:09
         #   * FROM CLIP NAME: Ep6_Sc2 - Elliot tries again with Tiff.mp4
-        # Export from Davinci Resolve
+        # Export from Davinci Resolve:
         #   002  10_sec   V     D    012 00:00:02:20 00:00:04:19 01:00:02:20 01:00:04:19
         #   111^^22222222^3333^^4444^555^66666666666^77777777777^88888888888^99999999999        
         context = bpy.context
@@ -283,113 +280,113 @@ class EDL(list):
         print(s)
         return(s)
     
-
-context = bpy.context
-scene = context.scene
-vse = scene.sequence_editor
-render = bpy.context.scene.render
-edl_fps = int(round((render.fps / render.fps_base), 3))
-
-id_count=1
-
-e = EDL()
-e.title = os.path.splitext(bpy.path.basename(bpy.context.blend_data.filepath))[0] 
-e.dropframe=False
-
-def start(strip):
-    return strip.frame_final_start 
-
-def end(strip):
-    return strip.frame_final_start + strip.frame_final_duration
-
-def channel(strip):
-    return strip.channel
-
-# Sort the clips in left to right order & in channels order
-seq_strips = bpy.context.scene.sequence_editor.sequences
-strips_by_start = sorted(seq_strips, key=start)
-strips_by_start_and_channel = sorted(strips_by_start, key=channel, reverse=True)
-jump=0
-cnt=0
-
-# Add values to EDL string
-for strip in strips_by_start_and_channel:
-    b = EDLBlock()
-    b.id = id_count
-
-    if strip.type in ['MOVIE'] and jump==0:
-        reelname = bpy.path.basename(strip.filepath)
-        b.file=reelname
-        reelname = os.path.splitext(reelname)[0]        
-        b.reel = ((reelname+"        ")[0:8])                
-        b.channels = "V   "
-        b.transition = "C   "
-        b.transDur = "   "
-        b.srcIn = TimeCode(strip.frame_offset_start,edl_fps)
-        b.srcOut = TimeCode(strip.frame_offset_start+strip.frame_final_duration,edl_fps)
-        b.recIn = TimeCode(strip.frame_final_start,edl_fps)
-        b.recOut = TimeCode(strip.frame_final_end,edl_fps)                
-        e.append(b)  
-        id_count=id_count+1    
-    elif strip.type in ['MOVIE'] and jump==1:  
-        jump=0       
-    elif strip.type in ['CROSS']:
-        # 1. Clip in the transition        
-        reelname = bpy.path.basename(strip.input_1.filepath)
-        b.file=""#reelname
-        reelname = os.path.splitext(reelname)[0]        
-        b.reel = ((reelname+"        ")[0:8])        
-        b.channels = "V  "         
-        b.transition = "C   "[0:4]
-        b.transDur = "   "                                       
-        b.srcIn = TimeCode(old_strip.frame_offset_start+old_strip.frame_final_duration,edl_fps)
-        b.srcOut = TimeCode(old_strip.frame_offset_start+old_strip.frame_final_duration,edl_fps)#TimeCode(strip.frame_start+strip.frame_final_duration,edl_fps)
-        b.recIn = TimeCode(strip.input_1.frame_final_end,edl_fps)
-        b.recOut = TimeCode(strip.input_1.frame_final_end,edl_fps)#TimeCode(strip.frame_final_end,edl_fps)                
-        e.append(b)        
-        # 2. Clip in the transition
-        b = EDLBlock()
-        #print(id_count)
-        b.id = id_count
-        reelname = bpy.path.basename(strip.input_2.filepath)
-        b.file= bpy.path.basename(strip.input_1.filepath) + "\n* TO CLIP NAME: "+reelname
-        reelname = os.path.splitext(reelname)[0]        
-        b.reel = ((reelname+"        ")[0:8])        
-        b.channels = "V  "         
-        b.transition = "D   "[0:4]  
-        b.transDur = (str(strip.frame_final_duration)).zfill(3)
-        b.srcIn = TimeCode(strips_by_start_and_channel[cnt+1].frame_offset_start-strip.frame_final_duration, edl_fps)
-        b.srcOut = TimeCode(strips_by_start_and_channel[cnt+1].frame_offset_start+strips_by_start_and_channel[cnt+1].frame_final_duration, edl_fps)
-        b.recIn = TimeCode(strip.frame_final_start,edl_fps)
-        b.recOut = TimeCode(strips_by_start_and_channel[cnt+1].frame_final_end,edl_fps)                
-        e.append(b)
-        id_count=id_count+1  
-        jump=1                                               
-    old_strip=strip
-    cnt+=1
-        
-for strip in strips_by_start_and_channel:
-    
-    b = EDLBlock()
-    b.id = id_count
-    #id_count=id_count+1   
-    if strip.type in ['SOUND']:
-        reelname = bpy.path.basename(strip.sound.filepath)
-        b.file=reelname
-        reelname = os.path.splitext(reelname)[0]        
-        b.reel = ((reelname+"        ")[0:8])        
-        b.channels = "A   "
-        b.transition = "C   "
-        b.transDur = "   "
-        b.srcIn = TimeCode(strip.frame_offset_start,edl_fps)
-        b.srcOut = TimeCode(strip.frame_offset_start+strip.frame_final_duration,edl_fps)
-        b.recIn = TimeCode(strip.frame_final_start,edl_fps)
-        b.recOut = TimeCode(strip.frame_final_end,edl_fps)                
-        e.append(b)                                      
-        id_count=id_count+1
-
 def write_edl(context, filepath, use_some_setting):
     print("Running export edl...\n")
+    
+    context = bpy.context
+    scene = context.scene
+    vse = scene.sequence_editor
+    render = bpy.context.scene.render
+    edl_fps = int(round((render.fps / render.fps_base), 3))
+
+    id_count=1
+
+    e = EDL()
+    e.title = os.path.splitext(bpy.path.basename(bpy.context.blend_data.filepath))[0] 
+    e.dropframe=False
+
+    def start(strip):
+        return strip.frame_final_start 
+
+    def end(strip):
+        return strip.frame_final_start + strip.frame_final_duration
+
+    def channel(strip):
+        return strip.channel
+
+    # Sort the clips in left to right order & in channels order
+    seq_strips = bpy.context.scene.sequence_editor.sequences
+    strips_by_start = sorted(seq_strips, key=start)
+    strips_by_start_and_channel = sorted(strips_by_start, key=channel, reverse=True)
+    jump=0
+    cnt=0
+
+    # Add values to EDL string
+    for strip in strips_by_start_and_channel:
+        b = EDLBlock()
+        b.id = id_count
+
+        if strip.type in ['MOVIE'] and jump==0:
+            reelname = bpy.path.basename(strip.filepath)
+            b.file=reelname
+            reelname = os.path.splitext(reelname)[0]        
+            b.reel = ((reelname+"        ")[0:8])                
+            b.channels = "V   "
+            b.transition = "C   "
+            b.transDur = "   "
+            b.srcIn = TimeCode(strip.frame_offset_start,edl_fps)
+            b.srcOut = TimeCode(strip.frame_offset_start+strip.frame_final_duration,edl_fps)
+            b.recIn = TimeCode(strip.frame_final_start,edl_fps)
+            b.recOut = TimeCode(strip.frame_final_end,edl_fps)                
+            e.append(b)  
+            id_count=id_count+1    
+        elif strip.type in ['MOVIE'] and jump==1:  
+            jump=0       
+        elif strip.type in ['CROSS']:
+            # 1. Clip in the transition        
+            reelname = bpy.path.basename(strip.input_1.filepath)
+            b.file=""#reelname
+            reelname = os.path.splitext(reelname)[0]        
+            b.reel = ((reelname+"        ")[0:8])        
+            b.channels = "V  "         
+            b.transition = "C   "[0:4]
+            b.transDur = "   "                                       
+            b.srcIn = TimeCode(old_strip.frame_offset_start+old_strip.frame_final_duration,edl_fps)
+            b.srcOut = TimeCode(old_strip.frame_offset_start+old_strip.frame_final_duration,edl_fps)#TimeCode(strip.frame_start+strip.frame_final_duration,edl_fps)
+            b.recIn = TimeCode(strip.input_1.frame_final_end,edl_fps)
+            b.recOut = TimeCode(strip.input_1.frame_final_end,edl_fps)#TimeCode(strip.frame_final_end,edl_fps)                
+            e.append(b)        
+            # 2. Clip in the transition
+            b = EDLBlock()
+            #print(id_count)
+            b.id = id_count
+            reelname = bpy.path.basename(strip.input_2.filepath)
+            b.file= bpy.path.basename(strip.input_1.filepath) + "\n* TO CLIP NAME: "+reelname
+            reelname = os.path.splitext(reelname)[0]        
+            b.reel = ((reelname+"        ")[0:8])        
+            b.channels = "V  "         
+            b.transition = "D   "[0:4]  
+            b.transDur = (str(strip.frame_final_duration)).zfill(3)
+            b.srcIn = TimeCode(strips_by_start_and_channel[cnt+1].frame_offset_start-strip.frame_final_duration, edl_fps)
+            b.srcOut = TimeCode(strips_by_start_and_channel[cnt+1].frame_offset_start+strips_by_start_and_channel[cnt+1].frame_final_duration, edl_fps)
+            b.recIn = TimeCode(strip.frame_final_start,edl_fps)
+            b.recOut = TimeCode(strips_by_start_and_channel[cnt+1].frame_final_end,edl_fps)                
+            e.append(b)
+            id_count=id_count+1  
+            jump=1                                               
+        old_strip=strip
+        cnt+=1
+            
+    for strip in strips_by_start_and_channel:
+        
+        b = EDLBlock()
+        b.id = id_count
+        #id_count=id_count+1   
+        if strip.type in ['SOUND']:
+            reelname = bpy.path.basename(strip.sound.filepath)
+            b.file=reelname
+            reelname = os.path.splitext(reelname)[0]        
+            b.reel = ((reelname+"        ")[0:8])   
+            b.channels = ("A"+str(strips_by_start_and_channel[0].channel - strip.channel+1)+"   ")[0:4]
+            b.transition = "C   "
+            b.transDur = "   "
+            b.srcIn = TimeCode(strip.frame_offset_start,edl_fps)
+            b.srcOut = TimeCode(strip.frame_offset_start+strip.frame_final_duration,edl_fps)
+            b.recIn = TimeCode(strip.frame_final_start,edl_fps)
+            b.recOut = TimeCode(strip.frame_final_end,edl_fps)                
+            e.append(b)                                      
+            id_count=id_count+1
+
     f = open(filepath, 'w', encoding='utf-8')
     f.write(e.savePremiere())
     f.close()
@@ -405,7 +402,7 @@ from bpy.types import Operator
 
 
 class ExportEDL(Operator, ExportHelper):
-    """Export Timeline as a Edit Decision List in CMX 3600 Format"""
+    """Export Timeline as a Edit Decision List in CMX 3600 Format\n(Max. one video channel and four audio channels)"""
     bl_idname = "export_timeline.edl"  # important since its how bpy.ops.import_test.some_data is constructed
     bl_label = "Export EDL"
 
@@ -450,4 +447,3 @@ if __name__ == "__main__":
     # test call
     bpy.ops.export_timeline.edl('INVOKE_DEFAULT')
     
-
