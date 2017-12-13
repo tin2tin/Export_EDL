@@ -27,6 +27,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 # Missing: Detect dropframe rates - and stop export
 # Missing: register/unregister?
 # Missing: Clean up
+# Missing option: to save each track as an individual file.
 
 import bpy
 import os
@@ -260,8 +261,11 @@ class EDL(list):
         context = bpy.context
         scene = context.scene
         s=""
+        render = bpy.context.scene.render
+        fps = int(round((render.fps / render.fps_base), 3))        
+        
         if not not self.title:
-            s="TITLE: " + self.title+"  "+str(scene.render.fps)+" fps\n"
+            s="TITLE: " + self.title+"  "+str(fps)+" fps\n"
         if self.dropframe:
             s += "FCM: DROP FRAME"+"\n"
         else:
@@ -287,8 +291,8 @@ def write_edl(context, filepath, use_some_setting):
     context = bpy.context
     scene = context.scene
     vse = scene.sequence_editor
-
-    edl_fps=scene.render.fps
+    render = bpy.context.scene.render
+    edl_fps = int(round((render.fps / render.fps_base), 3)) 
     id_count=1
 
     e = EDL()
