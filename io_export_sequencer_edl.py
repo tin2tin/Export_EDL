@@ -284,174 +284,116 @@ class EDL(list):
         return(s)
     
 
+context = bpy.context
+scene = context.scene
+vse = scene.sequence_editor
+render = bpy.context.scene.render
+edl_fps = int(round((render.fps / render.fps_base), 3))
+
+id_count=1
+
+e = EDL()
+e.title = os.path.splitext(bpy.path.basename(bpy.context.blend_data.filepath))[0] 
+e.dropframe=False
+
+def start(strip):
+    return strip.frame_final_start 
+
+def end(strip):
+    return strip.frame_final_start + strip.frame_final_duration
+
+def channel(strip):
+    return strip.channel
+
+# Sort the clips in left to right order & in channels order
+seq_strips = bpy.context.scene.sequence_editor.sequences
+strips_by_start = sorted(seq_strips, key=start)
+strips_by_start_and_channel = sorted(strips_by_start, key=channel, reverse=True)
+jump=0
+cnt=0
+
+# Add values to EDL string
+for strip in strips_by_start_and_channel:
+    b = EDLBlock()
+    b.id = id_count
+
+    if strip.type in ['MOVIE'] and jump==0:
+        reelname = bpy.path.basename(strip.filepath)
+        b.file=reelname
+        reelname = os.path.splitext(reelname)[0]        
+        b.reel = ((reelname+"        ")[0:8])                
+        b.channels = "V   "
+        b.transition = "C   "
+        b.transDur = "   "
+        b.srcIn = TimeCode(strip.frame_offset_start,edl_fps)
+        b.srcOut = TimeCode(strip.frame_offset_start+strip.frame_final_duration,edl_fps)
+        b.recIn = TimeCode(strip.frame_final_start,edl_fps)
+        b.recOut = TimeCode(strip.frame_final_end,edl_fps)                
+        e.append(b)  
+        id_count=id_count+1    
+    elif strip.type in ['MOVIE'] and jump==1:  
+        jump=0       
+    elif strip.type in ['CROSS']:
+        # 1. Clip in the transition        
+        reelname = bpy.path.basename(strip.input_1.filepath)
+        b.file=""#reelname
+        reelname = os.path.splitext(reelname)[0]        
+        b.reel = ((reelname+"        ")[0:8])        
+        b.channels = "V  "         
+        b.transition = "C   "[0:4]
+        b.transDur = "   "                                       
+        b.srcIn = TimeCode(old_strip.frame_offset_start+old_strip.frame_final_duration,edl_fps)
+        b.srcOut = TimeCode(old_strip.frame_offset_start+old_strip.frame_final_duration,edl_fps)#TimeCode(strip.frame_start+strip.frame_final_duration,edl_fps)
+        b.recIn = TimeCode(strip.input_1.frame_final_end,edl_fps)
+        b.recOut = TimeCode(strip.input_1.frame_final_end,edl_fps)#TimeCode(strip.frame_final_end,edl_fps)                
+        e.append(b)        
+        # 2. Clip in the transition
+        b = EDLBlock()
+        #print(id_count)
+        b.id = id_count
+        reelname = bpy.path.basename(strip.input_2.filepath)
+        b.file= bpy.path.basename(strip.input_1.filepath) + "\n* TO CLIP NAME: "+reelname
+        reelname = os.path.splitext(reelname)[0]        
+        b.reel = ((reelname+"        ")[0:8])        
+        b.channels = "V  "         
+        b.transition = "D   "[0:4]  
+        b.transDur = (str(strip.frame_final_duration)).zfill(3)
+        b.srcIn = TimeCode(strips_by_start_and_channel[cnt+1].frame_offset_start-strip.frame_final_duration, edl_fps)
+        b.srcOut = TimeCode(strips_by_start_and_channel[cnt+1].frame_offset_start+strips_by_start_and_channel[cnt+1].frame_final_duration, edl_fps)
+        b.recIn = TimeCode(strip.frame_final_start,edl_fps)
+        b.recOut = TimeCode(strips_by_start_and_channel[cnt+1].frame_final_end,edl_fps)                
+        e.append(b)
+        id_count=id_count+1  
+        jump=1                                               
+    old_strip=strip
+    cnt+=1
+        
+for strip in strips_by_start_and_channel:
     
+    b = EDLBlock()
+    b.id = id_count
+    #id_count=id_count+1   
+    if strip.type in ['SOUND']:
+        reelname = bpy.path.basename(strip.sound.filepath)
+        b.file=reelname
+        reelname = os.path.splitext(reelname)[0]        
+        b.reel = ((reelname+"        ")[0:8])        
+        b.channels = "A   "
+        b.transition = "C   "
+        b.transDur = "   "
+        b.srcIn = TimeCode(strip.frame_offset_start,edl_fps)
+        b.srcOut = TimeCode(strip.frame_offset_start+strip.frame_final_duration,edl_fps)
+        b.recIn = TimeCode(strip.frame_final_start,edl_fps)
+        b.recOut = TimeCode(strip.frame_final_end,edl_fps)                
+        e.append(b)                                      
+        id_count=id_count+1
+
 def write_edl(context, filepath, use_some_setting):
     print("Running export edl...\n")
-    
-    context = bpy.context
-    scene = context.scene
-    vse = scene.sequence_editor
-    render = bpy.context.scene.render
-    edl_fps = int(round((render.fps / render.fps_base), 3)) 
-    id_count=1
+    f = open(filepath, 'w', encoding='utf-8')
+    f.write(e.savePremiere())
+    f.close()
 
-    e = EDL()
-    e.title = os.path.splitext(bpy.path.basename(bpy.context.blend_data.filepath))[0] 
-    e.dropframe=False
-
-    def start(strip):
-        return strip.frame_final_start 
-
-    def end(strip):
-        return strip.frame_final_start + strip.frame_final_duration
-
-    def channel(strip):
-        return strip.channel
-
-    # Sort the clips in left to right order & in channels order
-    seq_strips = bpy.context.scene.sequence_editor.sequences
-    strips_by_start = sorted(seq_strips, key=start)
-    strips_by_start_and_channel = sorted(strips_by_start, key=channel, reverse=True)
-    
-    jump=0
-    cnt=0
-    
-    max_channel=strips_by_start_and_channel[0].channel
-    current_channel=0
-
-    # Add values to EDL string
-    
-    # Loop for video
-    for strip in strips_by_start_and_channel:
-        b = EDLBlock()
-        b.id = id_count
-
-        if strip.type in ['MOVIE'] and jump==0:
-            try:
-                reelname = bpy.path.basename(strip.filepath)
-                b.file=reelname
-                reelname = os.path.splitext(reelname)[0]        
-                b.reel = ((reelname+"        ")[0:8])                
-                b.channels = "V"#+str(max_channel-strip.channel+1)
-                b.transition = "C   "
-                b.transDur = "   "
-                b.srcIn = TimeCode(strip.frame_offset_start,edl_fps)
-                b.srcOut = TimeCode(strip.frame_offset_start+strip.frame_final_duration,edl_fps)
-                b.recIn = TimeCode(strip.frame_final_start,edl_fps)
-                b.recOut = TimeCode(strip.frame_final_end,edl_fps)                
-                e.append(b)  
-                id_count=id_count+1  
-            except:
-                id_count=id_count    
-        elif strip.type in ['MOVIE'] and jump==1:  
-            # jump=1 means that current strip has been used in previous transition
-            jump=0       
-        elif strip.type in ['CROSS']:
-            try:
-                # 1. Clip in the transition        
-                reelname = bpy.path.basename(strip.input_1.filepath)
-                b.file=""#reelname
-                reelname = os.path.splitext(reelname)[0]        
-                b.reel = ((reelname+"        ")[0:8])        
-                b.channels = "V"#+str(max_channel-strip.channel+1)         
-                b.transition = "C   "[0:4]
-                b.transDur = "   "                                       
-                b.srcIn = TimeCode(strips_by_start_and_channel[cnt-1].frame_offset_start+strips_by_start_and_channel[cnt-1].frame_final_duration,edl_fps)
-                b.srcOut = TimeCode(strips_by_start_and_channel[cnt-1].frame_offset_start+strips_by_start_and_channel[cnt-1].frame_final_duration,edl_fps)#TimeCode(strip.frame_start+strip.frame_final_duration,edl_fps)
-                b.recIn = TimeCode(strip.input_1.frame_final_end,edl_fps)
-                b.recOut = TimeCode(strip.input_1.frame_final_end,edl_fps)#TimeCode(strip.frame_final_end,edl_fps)                
-                e.append(b)        
-                # 2. Clip in the transition
-                b = EDLBlock()
-                b.id = id_count
-                reelname = bpy.path.basename(strip.input_2.filepath)
-                b.file= bpy.path.basename(strip.input_1.filepath) + "\n* TO CLIP NAME: "+reelname
-                reelname = os.path.splitext(reelname)[0]        
-                b.reel = ((reelname+"        ")[0:8])        
-                b.channels = "V"#+str(max_channel-strip.channel+1)        
-                b.transition = "D   "[0:4]  
-                b.transDur = (str(strip.frame_final_duration)).zfill(3)
-                b.srcIn = TimeCode(strips_by_start_and_channel[cnt+1].frame_offset_start-strip.frame_final_duration, edl_fps)
-                b.srcOut = TimeCode(strips_by_start_and_channel[cnt+1].frame_offset_start+strips_by_start_and_channel[cnt+1].frame_final_duration, edl_fps)
-                b.recIn = TimeCode(strip.frame_final_start,edl_fps)
-                b.recOut = TimeCode(strips_by_start_and_channel[cnt+1].frame_final_end,edl_fps)                
-                e.append(b)
-                id_count=id_count+1  
-                jump=1
-            except:
-                jump=0                                                   
-
-        try:
-            next_channel=max_channel-strips_by_start_and_channel[cnt+1].channel
-        except: 
-            next_channel=max_channel+1
-        #print(str(cnt)+" "+str(b.transition))
-        #print(str(next_channel)+"   "+str(current_channel))
-        
-        if next_channel!=current_channel and b.srcIn !=None:
-            e.title = os.path.splitext(bpy.path.basename(filepath))[0]+"_V_"+str(max_channel-strip.channel+1).zfill(2)
-            edl_filepath=str(filepath[:-4])+"_V_"+str(max_channel-strip.channel+1).zfill(2)+".edl"
-            f = open(edl_filepath, 'w', encoding='utf-8')
-            f.write(e.savePremiere())
-            f.close() 
-            b=""
-            b = EDLBlock()
-            b.id = 1
-            id_count=1
-            current_channel=next_channel
-            e = EDL()
-            
-        cnt+=1   
-        
-    # Loop for audio                           
-    current_channel=0
-    cnt=0 
-    b=""
-    b = EDLBlock()
-    b.id = 1
-    id_count=1 
-    e = EDL()   
-             
-    for strip in strips_by_start_and_channel:    
-
-        b = EDLBlock()
-        b.id = id_count
-        #id_count=id_count+1   
-        if strip.type in ['SOUND']:
-            reelname = bpy.path.basename(strip.sound.filepath)
-            b.file=reelname
-            reelname = os.path.splitext(reelname)[0]        
-            b.reel = ((reelname+"        ")[0:8])        
-            b.channels = "A"#+str(max_channel-strip.channel+1)
-            b.transition = "C   "
-            b.transDur = "   "
-            b.srcIn = TimeCode(strip.frame_offset_start,edl_fps)
-            b.srcOut = TimeCode(strip.frame_offset_start+strip.frame_final_duration,edl_fps)
-            b.recIn = TimeCode(strip.frame_final_start,edl_fps)
-            b.recOut = TimeCode(strip.frame_final_end,edl_fps)                
-            e.append(b)                                      
-            id_count=id_count+1
-
-        try:
-            next_channel=max_channel-strips_by_start_and_channel[cnt+1].channel+1
-        except: 
-            next_channel=max_channel+1
-        #print(str(cnt)+str(b.srcIn))                
-        #print(str(next_channel)+"  "+str(current_channel))    
-        #print(b.srcIn)
-        if next_channel!=current_channel and b.srcIn !=None:
-            e.title = os.path.splitext(bpy.path.basename(filepath))[0]+"_A_"+str(max_channel-strip.channel+1).zfill(2)
-            edl_filepath=str(filepath[:-4])+"_A_"+str(max_channel-strip.channel+1).zfill(2)+".edl"
-            f = open(edl_filepath, 'w', encoding='utf-8')
-            f.write(e.savePremiere())
-            f.close() 
-            b=""
-            b = EDLBlock()
-            b.id = 1
-            id_count=1
-            current_channel=next_channel
-            e = EDL()
-        cnt+=1
     return {'FINISHED'}
 
 
