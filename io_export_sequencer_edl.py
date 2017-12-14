@@ -29,18 +29,121 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import bpy
 import os
 import sys
+from bpy.props import IntProperty
 
 bl_info = {
     "name": "Export EDL",
-    "author": "Tintwotin, Campbell Barton, William R. Zwicky & szaszak",
+    "author": "Tintwotin, Campbell Barton, William R. Zwicky, batFINGER & szaszak",
     "version": (0, 5),
     "blender": (2, 78, 0),
-    "location": "File > Export > Timeline (.edl)",
-    "description": "Save a CMX formatted EDL from the Timeline",
-    "warning": "Flatten VSE project to one video channel and max. four audio channels",
+    "location": "Sequencer > Strip Toolbar",
+    "description": "Save a CMX 3600 formatted EDL from the Timeline - One video track and four audio tracks",
+    "warning": "",
     "wiki_url": "https://github.com/tin2tin/ExportEDL",
     "category": "Import-Export",
 }
+
+
+class UIPanel(bpy.types.Panel):
+    bl_label = "Export EDL"
+    bl_space_type = "SEQUENCE_EDITOR"
+    bl_region_type = "UI"
+
+    def draw(self, context):
+        layout = self.layout
+        scn = context.scene
+        layout= layout.column(align=True) 
+        #layout.label(text=" Select Channels: ")
+        layout.prop(scn, "video_int", toggle=True, text = "Video Channel")
+        layout.prop(scn, "audio1_int", toggle=True, text = "1. Audio Channel")
+        layout.prop(scn, "audio2_int", toggle=True, text = "2. Audio Channel")
+        layout.prop(scn, "audio3_int", toggle=True, text = "3. Audio Channel")                
+        layout.prop(scn, "audio4_int", toggle=True, text = "4. Audio Channel")                               
+        layout.operator("export_timeline.edl", text = "Export EDL")
+
+def change_channel_v(self, context):        
+
+    active_channel = self.video_int    
+
+    sed = self.sequence_editor
+    # if active strip isn't in active_channel set to None.
+    if getattr(sed.active_strip, "channel", -1) != active_channel:
+        sed.active_strip = None
+
+    sequences = sed.sequences_all
+    # select all strips in active channel
+    for strip in sequences:
+        strip.select = strip.channel == active_channel  
+
+def change_channel_a1(self, context):        
+
+    active_channel = self.audio1_int    
+
+    sed = self.sequence_editor
+    # if active strip isn't in active_channel set to None.
+    if getattr(sed.active_strip, "channel", -1) != active_channel:
+        sed.active_strip = None
+
+    sequences = sed.sequences_all
+    # select all strips in active channel
+    for strip in sequences:
+        strip.select = strip.channel == active_channel  
+
+def change_channel_a2(self, context):        
+
+    active_channel = self.audio2_int    
+
+    sed = self.sequence_editor
+    # if active strip isn't in active_channel set to None.
+    if getattr(sed.active_strip, "channel", -1) != active_channel:
+        sed.active_strip = None
+
+    sequences = sed.sequences_all
+    # select all strips in active channel
+    for strip in sequences:
+        strip.select = strip.channel == active_channel  
+
+def change_channel_a3(self, context):        
+
+    active_channel = self.audio3_int    
+
+
+    sed = self.sequence_editor
+    # if active strip isn't in active_channel set to None.
+    if getattr(sed.active_strip, "channel", -1) != active_channel:
+        sed.active_strip = None
+
+    sequences = sed.sequences_all
+    # select all strips in active channel
+    for strip in sequences:
+        strip.select = strip.channel == active_channel  
+
+def change_channel_a4(self, context):        
+
+    active_channel = self.audio4_int    
+
+    sed = self.sequence_editor
+    # if active strip isn't in active_channel set to None.
+    if getattr(sed.active_strip, "channel", -1) != active_channel:
+        sed.active_strip = None
+
+    sequences = sed.sequences_all
+    # select all strips in active channel
+    for strip in sequences:
+        strip.select = strip.channel == active_channel  
+
+
+class OBJECT_OT_ExportEDLButton(bpy.types.Operator):
+    bl_idname = "idname_edl.export"
+    bl_label = "Export EDL"
+ 
+    def execute(self, context):
+        scn = context.scene
+        #write edl here
+        return{'FINISHED'}
+
+
+
 
 # checkFPS function by szaszak
 def checkFPS(): 
@@ -143,11 +246,15 @@ class TimeCode:
 
         self.frame = frame
 
-        if neg:
-            self.frame = -self.frame
-            self.seconds = -self.seconds
-            self.minutes = -self.minutes
-            self.hours = -self.hours
+        if neg: 
+            self.frame = 0 #no negative timecodes
+            self.seconds = 0
+            self.minutes = 0
+            self.hours = 0            
+#            self.frame = -self.frame
+#            self.seconds = -self.seconds
+#            self.minutes = -self.minutes
+#            self.hours = -self.hours
 
         return self
 
@@ -280,7 +387,6 @@ class EDL(list):
         return(s)
     
 def write_edl(context, filepath, use_some_setting):
-    checkFPS()
     print("Running export edl...\n")
     
     context = bpy.context
@@ -310,13 +416,23 @@ def write_edl(context, filepath, use_some_setting):
     strips_by_start_and_channel = sorted(strips_by_start, key=channel, reverse=True)
     jump=0
     cnt=0
-
+    
+    chkscene=bpy.context.scene
+    video_okay = False
+    audio_okay = False  
+    
     # Add values to EDL string
     for strip in strips_by_start_and_channel:
+            # check if strip is on selected channels
+        if strip.channel == chkscene.video_int:
+            video_okay=True
+        else:
+            video_okay=False   
+            
         b = EDLBlock()
         b.id = id_count
 
-        if strip.type in ['MOVIE'] and jump==0:
+        if strip.type in ['MOVIE'] and jump==0 and video_okay:
             reelname = bpy.path.basename(strip.filepath)
             b.file=reelname
             reelname = os.path.splitext(reelname)[0]        
@@ -330,9 +446,9 @@ def write_edl(context, filepath, use_some_setting):
             b.recOut = TimeCode(strip.frame_final_end,edl_fps)                
             e.append(b)  
             id_count=id_count+1    
-        elif strip.type in ['MOVIE'] and jump==1:  
+        elif strip.type in ['MOVIE'] and jump==1 and video_okay:  
             jump=0       
-        elif strip.type in ['CROSS']:
+        elif strip.type in ['CROSS'] and video_okay:
             # 1. Clip in the transition        
             reelname = bpy.path.basename(strip.input_1.filepath)
             b.file=""#reelname
@@ -348,7 +464,6 @@ def write_edl(context, filepath, use_some_setting):
             e.append(b)        
             # 2. Clip in the transition
             b = EDLBlock()
-            #print(id_count)
             b.id = id_count
             reelname = bpy.path.basename(strip.input_2.filepath)
             b.file= bpy.path.basename(strip.input_1.filepath) + "\n* TO CLIP NAME: "+reelname
@@ -368,16 +483,25 @@ def write_edl(context, filepath, use_some_setting):
         cnt+=1
             
     for strip in strips_by_start_and_channel:
-        
+ 
+        if strip.channel == chkscene.audio1_int or strip.channel == chkscene.audio2_int or strip.channel == chkscene.audio3_int or strip.channel == chkscene.audio4_int:
+            audio_okay=True
+        else:
+            audio_okay=False 
+                    
         b = EDLBlock()
         b.id = id_count
-        #id_count=id_count+1   
-        if strip.type in ['SOUND']:
+        aud_chan = 1
+        if strip.type in ['SOUND'] and audio_okay:
             reelname = bpy.path.basename(strip.sound.filepath)
             b.file=reelname
             reelname = os.path.splitext(reelname)[0]        
             b.reel = ((reelname+"        ")[0:8])   
-            b.channels = ("A"+str(strips_by_start_and_channel[0].channel - strip.channel+1)+"   ")[0:4]
+            if strip.channel == chkscene.audio1_int: aud_chan=1
+            if strip.channel == chkscene.audio2_int: aud_chan=2
+            if strip.channel == chkscene.audio3_int: aud_chan=3
+            if strip.channel == chkscene.audio4_int: aud_chan=4   
+            b.channels = ("A"+str(aud_chan)+"   ")[0:4]
             b.transition = "C   "
             b.transDur = "   "
             b.srcIn = TimeCode(strip.frame_offset_start,edl_fps)
@@ -426,7 +550,7 @@ class ExportEDL(Operator, ExportHelper):
     def execute(self, context):
         fps, timecode = checkFPS()
         return write_edl(context, self.filepath, self.use_setting)
-
+"""
 # Dynamic menu
 def menu_func_export(self, context):
     self.layout.operator(ExportEDL.bl_idname, text="Timeline (.edl)")
@@ -434,12 +558,12 @@ def menu_func_export(self, context):
 
 def register():
     bpy.utils.register_class(ExportEDL)
-    bpy.types.INFO_MT_file_export.append(menu_func_export)
+    #bpy.types.INFO_MT_file_export.append(menu_func_export)
 
 
 def unregister():
     bpy.utils.unregister_class(ExportEDL)
-    bpy.types.INFO_MT_file_export.remove(menu_func_export)
+    #bpy.types.INFO_MT_file_export.remove(menu_func_export)
 
 
 if __name__ == "__main__":
@@ -447,6 +571,54 @@ if __name__ == "__main__":
 
     # test call
     #bpy.ops.export_timeline.edl('INVOKE_DEFAULT')
+"""
 
+#    Registration
+def register():
+    bpy.utils.register_class(UIPanel)
+    bpy.utils.register_class(ExportEDL)    
+    bpy.types.Scene.video_int = IntProperty(
+        name = "Channel", 
+        description = "Select Channel for Video Export",
+        min = 1,
+        max = 32,
+        default=1,
+        update=change_channel_v)
+    bpy.types.Scene.audio1_int = IntProperty(
+        name = "Channel", 
+        description = "Select Channel for Audio Export",
+        min = 1,
+        max = 32,
+        default=2,
+        update=change_channel_a1)
+    bpy.types.Scene.audio2_int = IntProperty(
+        name = "Channel", 
+        description = "Select Channel for Audio Export",
+        min = 1,
+        max = 32,
+        default=3,
+        update=change_channel_a2)
+    bpy.types.Scene.audio3_int = IntProperty(
+        name = "Channel", 
+        description = "Select Channel for Audio Export",
+        min = 1,
+        max = 32,
+        default=4,
+        update=change_channel_a3)                                
+    bpy.types.Scene.audio4_int = IntProperty(
+        name = "Channel", 
+        description = "Select Channel for Audio Export",
+        min = 1,
+        max = 32,
+        default=5,
+        update=change_channel_a4)                                
+        
+def unregister():
+    bpy.utils.unregister_class(ExportEDL)    
+    bpy.utils.unregister_class(UIPanel)    
+
+if __name__ == "__main__":
+    register()
     
 #unregister()
+    
