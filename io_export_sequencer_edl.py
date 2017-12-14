@@ -37,9 +37,8 @@ bl_info = {
     "blender": (2, 78, 0),
     "location": "File > Export > Timeline (.edl)",
     "description": "Save a CMX formatted EDL from the Timeline",
-    "warning": "Flatten VSE project to max. one video channel and four audio channels",
-    "wiki_url": "https://github.com/tin2tin/ExportEDL"
-                "",
+    "warning": "Flatten VSE project to one video channel and max. four audio channels",
+    "wiki_url": "https://github.com/tin2tin/ExportEDL",
     "category": "Import-Export",
 }
 
@@ -65,7 +64,7 @@ def checkFPS():
         )
     return fps, timecode
 
-checkFPS()
+
 
 # TimeCode class by Campbell Barton
 class TimeCode:
@@ -281,6 +280,7 @@ class EDL(list):
         return(s)
     
 def write_edl(context, filepath, use_some_setting):
+    checkFPS()
     print("Running export edl...\n")
     
     context = bpy.context
@@ -424,6 +424,7 @@ class ExportEDL(Operator, ExportHelper):
             )
                 
     def execute(self, context):
+        fps, timecode = checkFPS()
         return write_edl(context, self.filepath, self.use_setting)
 
 # Dynamic menu
@@ -445,5 +446,7 @@ if __name__ == "__main__":
     register()
 
     # test call
-    bpy.ops.export_timeline.edl('INVOKE_DEFAULT')
+    #bpy.ops.export_timeline.edl('INVOKE_DEFAULT')
+
     
+#unregister()
