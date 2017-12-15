@@ -43,7 +43,6 @@ bl_info = {
     "category": "Import-Export",
 }
 
-
 class UIPanel(bpy.types.Panel):
     bl_label = "Export EDL"
     bl_space_type = "SEQUENCE_EDITOR"
@@ -53,6 +52,7 @@ class UIPanel(bpy.types.Panel):
         layout = self.layout
         scn = context.scene
         layout= layout.column(align=True) 
+
         #layout.label(text=" Select Channels: ")
         layout.prop(scn, "video_int", toggle=True, text = "Video Channel")
         layout.prop(scn, "audio1_int", toggle=True, text = "1. Audio Channel")
@@ -141,8 +141,6 @@ class OBJECT_OT_ExportEDLButton(bpy.types.Operator):
         scn = context.scene
         #write edl here
         return{'FINISHED'}
-
-
 
 
 # checkFPS function by szaszak
@@ -399,6 +397,7 @@ def write_edl(context, filepath, use_some_setting):
 
     e = EDL()
     e.title = os.path.splitext(bpy.path.basename(bpy.context.blend_data.filepath))[0] 
+    print ("title:"+e.title)
     e.dropframe=False
 
     def start(strip):
@@ -449,8 +448,16 @@ def write_edl(context, filepath, use_some_setting):
         elif strip.type in ['MOVIE'] and jump==1 and video_okay:  
             jump=0       
         elif strip.type in ['CROSS'] and video_okay:
-            # 1. Clip in the transition        
-            reelname = bpy.path.basename(strip.input_1.filepath)
+            # 1. Clip in the transition 
+                # Strange thing input 1+2 are in the order of selection and not left=1 and right=2 - so make Left = 1:            
+            if strip.input_1.frame_final_start < strip.input_2.frame_final_start:
+                reelname = bpy.path.basename(strip.input_1.filepath)
+                realinput1 = strip.input_1
+                realinput2 = strip.input_2
+            else:
+                reelname = bpy.path.basename(strip.input_2.filepath)  
+                realinput1 = strip.input_2 
+                realinput2 = strip.input_1                             
             b.file=""#reelname
             reelname = os.path.splitext(reelname)[0]        
             b.reel = ((reelname+"        ")[0:8])        
@@ -459,26 +466,32 @@ def write_edl(context, filepath, use_some_setting):
             b.transDur = "   "                                       
             b.srcIn = TimeCode(old_strip.frame_offset_start+old_strip.frame_final_duration,edl_fps)
             b.srcOut = TimeCode(old_strip.frame_offset_start+old_strip.frame_final_duration,edl_fps)#TimeCode(strip.frame_start+strip.frame_final_duration,edl_fps)
-            b.recIn = TimeCode(strip.input_1.frame_final_end,edl_fps)
-            b.recOut = TimeCode(strip.input_1.frame_final_end,edl_fps)#TimeCode(strip.frame_final_end,edl_fps)                
+            b.recIn = TimeCode(realinput1.frame_final_end,edl_fps)
+            b.recOut = TimeCode(realinput1.frame_final_end,edl_fps)#TimeCode(strip.frame_final_end,edl_fps)                
             e.append(b)        
             # 2. Clip in the transition
             b = EDLBlock()
             b.id = id_count
-            reelname = bpy.path.basename(strip.input_2.filepath)
-            b.file= bpy.path.basename(strip.input_1.filepath) + "\n* TO CLIP NAME: "+reelname
+            reelname = bpy.path.basename(realinput2.filepath)
+            b.file= bpy.path.basename(realinput1.filepath) + "\n* TO CLIP NAME: "+reelname
             reelname = os.path.splitext(reelname)[0]        
             b.reel = ((reelname+"        ")[0:8])        
             b.channels = "V  "         
             b.transition = "D   "[0:4]  
             b.transDur = (str(strip.frame_final_duration)).zfill(3)
+            # Source inpoint of next clip - duration of transition
             b.srcIn = TimeCode(strips_by_start_and_channel[cnt+1].frame_offset_start-strip.frame_final_duration, edl_fps)
-            b.srcOut = TimeCode(strips_by_start_and_channel[cnt+1].frame_offset_start+strips_by_start_and_channel[cnt+1].frame_final_duration, edl_fps)
-            b.recIn = TimeCode(strip.frame_final_start,edl_fps)
-            b.recOut = TimeCode(strips_by_start_and_channel[cnt+1].frame_final_end,edl_fps)                
+            # Source Inpoint of next clip - duration of transition + duration of next clip
+            b.srcOut = TimeCode(strips_by_start_and_channel[cnt+1].frame_offset_start-strip.frame_final_duration+strips_by_start_and_channel[cnt+1].frame_final_duration, edl_fps)
+            # Rec inpoint of next clip
+            b.recIn = TimeCode(realinput1.frame_final_end,edl_fps)
+            # Rec inpoint of next clip + duration of next clip
+            b.recOut = TimeCode(realinput1.frame_final_end+strips_by_start_and_channel[cnt+1].frame_final_duration,edl_fps) 
+            
             e.append(b)
             id_count=id_count+1  
-            jump=1                                               
+            jump=1 
+                                               
         old_strip=strip
         cnt+=1
             
