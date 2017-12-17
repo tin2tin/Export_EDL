@@ -53,7 +53,6 @@ class UIPanel(bpy.types.Panel):
         scn = context.scene
         layout= layout.column(align=True) 
 
-        #layout.label(text=" Select Channels: ")
         layout.prop(scn, "video_int", toggle=True, text = "Video Channel")
         layout.prop(scn, "audio1_int", toggle=True, text = "1. Audio Channel")
         layout.prop(scn, "audio2_int", toggle=True, text = "2. Audio Channel")
@@ -158,13 +157,20 @@ def checkFPS():
         else:
             timecode = "timecode_%s" % str(fps).replace(".", "")
     else:
-        raise RuntimeError(
-            "Framerate \'" + str(fps) + "\' not supported by EDL. "
+        bpy.context.window_manager.popup_menu(fr_error, title="Error", icon='ERROR')
+        timecode = "timecode_%s" % str(fps).replace(".", "")
+        """raise RuntimeError(
+            "Framerate \'" + str(fps) + "\' not supported by EDL Export. "
             "Change to 24, 25, 30, 60."
             #"Change to 23.976, 24, 24.975, 25, 29.97, 30, 59.94, 60."            
-        )
+        )"""
     return fps, timecode
 
+def fr_error(self, context):
+    render = bpy.context.scene.render
+    fps = round((render.fps / render.fps_base), 3)   
+    self.layout.label("Framerate \'" + str(fps) + "\' not supported by EDL. "
+            "Change to 24, 25, 30, 60.")
 
 
 # TimeCode class by Campbell Barton
@@ -347,7 +353,7 @@ class EDL(list):
     def load(filename):
         pass
 
-    def savePremiere(self):
+    def saveEDL(self):
         # CMX 3600:
         #   111^^222^^3333^^4444^555^666666666666^777777777777^888888888888^999999999999^
         # Old Lightworks converter:
@@ -422,7 +428,8 @@ def write_edl(context, filepath, use_some_setting):
     
     # Add values to EDL string
     for strip in strips_by_start_and_channel:
-            # check if strip is on selected channels
+        
+            # check if strip is on UI selected channels
         if strip.channel == chkscene.video_int:
             video_okay=True
         else:
@@ -430,7 +437,7 @@ def write_edl(context, filepath, use_some_setting):
             
         b = EDLBlock()
         b.id = id_count
-
+            #no transition
         if strip.type in ['MOVIE'] and jump==0 and video_okay:
             reelname = bpy.path.basename(strip.filepath)
             b.file=reelname
@@ -444,12 +451,16 @@ def write_edl(context, filepath, use_some_setting):
             b.recIn = TimeCode(strip.frame_final_start,edl_fps)
             b.recOut = TimeCode(strip.frame_final_end,edl_fps)                
             e.append(b)  
-            id_count=id_count+1    
+            id_count=id_count+1
+                
+            # If previous strip was a transition, then current strip is added already, so jump
         elif strip.type in ['MOVIE'] and jump==1 and video_okay:  
-            jump=0       
+            
+            jump=0
+                   
         elif strip.type in ['CROSS'] and video_okay:
-            # 1. Clip in the transition 
-                # Strange thing input 1+2 are in the order of selection and not left=1 and right=2 - so make Left = 1:            
+            
+            # Input 1+2 are in the order of selection and not left=1 and right=2 - so make Left = 1:       
             if strip.input_1.frame_final_start < strip.input_2.frame_final_start:
                 reelname = bpy.path.basename(strip.input_1.filepath)
                 realinput1 = strip.input_1
@@ -457,18 +468,21 @@ def write_edl(context, filepath, use_some_setting):
             else:
                 reelname = bpy.path.basename(strip.input_2.filepath)  
                 realinput1 = strip.input_2 
-                realinput2 = strip.input_1                             
-            b.file=""#reelname
+                realinput2 = strip.input_1                         
+
+            # 1. Clip in the transition                    
+            b.file=""
             reelname = os.path.splitext(reelname)[0]        
             b.reel = ((reelname+"        ")[0:8])        
             b.channels = "V  "         
             b.transition = "C   "[0:4]
             b.transDur = "   "                                       
-            b.srcIn = TimeCode(old_strip.frame_offset_start+old_strip.frame_final_duration,edl_fps)
-            b.srcOut = TimeCode(old_strip.frame_offset_start+old_strip.frame_final_duration,edl_fps)#TimeCode(strip.frame_start+strip.frame_final_duration,edl_fps)
+            b.srcIn = TimeCode(realinput1.frame_offset_start+realinput1.frame_final_duration,edl_fps) 
+            b.srcOut = TimeCode(realinput1.frame_offset_start+realinput1.frame_final_duration,edl_fps)
             b.recIn = TimeCode(realinput1.frame_final_end,edl_fps)
-            b.recOut = TimeCode(realinput1.frame_final_end,edl_fps)#TimeCode(strip.frame_final_end,edl_fps)                
-            e.append(b)        
+            b.recOut = TimeCode(realinput1.frame_final_end,edl_fps)               
+            e.append(b)
+                    
             # 2. Clip in the transition
             b = EDLBlock()
             b.id = id_count
@@ -480,23 +494,22 @@ def write_edl(context, filepath, use_some_setting):
             b.transition = "D   "[0:4]  
             b.transDur = (str(strip.frame_final_duration)).zfill(3)
             # Source inpoint of next clip - duration of transition
-            b.srcIn = TimeCode(strips_by_start_and_channel[cnt+1].frame_offset_start-strip.frame_final_duration, edl_fps)
-            # Source Inpoint of next clip - duration of transition + duration of next clip
-            b.srcOut = TimeCode(strips_by_start_and_channel[cnt+1].frame_offset_start-strip.frame_final_duration+strips_by_start_and_channel[cnt+1].frame_final_duration, edl_fps)
+            b.srcIn = TimeCode(realinput2.frame_offset_start-strip.frame_final_duration, edl_fps)
+            # Source Inpoint of next clip + duration of next clip- duration of transition 
+            b.srcOut = TimeCode(realinput2.frame_offset_start+realinput2.frame_final_duration-strip.frame_final_duration, edl_fps)
             # Rec inpoint of next clip
             b.recIn = TimeCode(realinput1.frame_final_end,edl_fps)
             # Rec inpoint of next clip + duration of next clip
-            b.recOut = TimeCode(realinput1.frame_final_end+strips_by_start_and_channel[cnt+1].frame_final_duration,edl_fps) 
-            
+            b.recOut = TimeCode(realinput2.frame_final_end,edl_fps)           
             e.append(b)
             id_count=id_count+1  
             jump=1 
                                                
-        old_strip=strip
         cnt+=1
-            
-    for strip in strips_by_start_and_channel:
  
+    #Audio - only clips supported
+    for strip in strips_by_start_and_channel:
+        #Is the strip on one of the selected channels?
         if strip.channel == chkscene.audio1_int or strip.channel == chkscene.audio2_int or strip.channel == chkscene.audio3_int or strip.channel == chkscene.audio4_int:
             audio_okay=True
         else:
@@ -525,7 +538,7 @@ def write_edl(context, filepath, use_some_setting):
             id_count=id_count+1
 
     f = open(filepath, 'w', encoding='utf-8')
-    f.write(e.savePremiere())
+    f.write(e.saveEDL())
     f.close()
 
     return {'FINISHED'}
@@ -542,6 +555,10 @@ class ExportEDL(Operator, ExportHelper):
     """Export Timeline as a Edit Decision List in CMX 3600 Format\n(Max. one video channel and four audio channels)"""
     bl_idname = "export_timeline.edl"  # important since its how bpy.ops.import_test.some_data is constructed
     bl_label = "Export EDL"
+
+    def execute(self, context):
+        fps, timecode = checkFPS()
+        return write_edl(context, self.filepath, self.use_setting)
 
     # ExportHelper mixin class uses this
     filename_ext = ".edl"
@@ -560,9 +577,7 @@ class ExportEDL(Operator, ExportHelper):
             default=True,
             )
                 
-    def execute(self, context):
-        fps, timecode = checkFPS()
-        return write_edl(context, self.filepath, self.use_setting)
+
 """
 # Dynamic menu
 def menu_func_export(self, context):
