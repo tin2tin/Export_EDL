@@ -1,6 +1,9 @@
 # ExportEDL
 Export Video Sequence Editor material in EDL files from Blender.
 
+# Tutorial Video
+https://www.youtube.com/watch?v=WdyMN9tQ21k
+
 # Location
 File > Export > Timeline(.edl)
 
