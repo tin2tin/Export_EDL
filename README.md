@@ -1,7 +1,10 @@
-# ExportEDL
-Export Video Sequence Editor material in EDL files from Blender.
+# Export EDL
+Export Video Sequencer Editor material in EDL files from Blender.
+
+![edl](https://github.com/tin2tin/ExportEDL/blob/master/edl.png "Blender EDL Export")
 
 # Tutorial Video
+[![YouTube EDL](https://github.com/tin2tin/ExportEDL/blob/master/yt_edl.png)](https://www.youtube.com/watch?v=WdyMN9tQ21k)
 https://www.youtube.com/watch?v=WdyMN9tQ21k
 
 # Location
