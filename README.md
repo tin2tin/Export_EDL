@@ -1,5 +1,5 @@
 # Export EDL
-Export Video Sequencer Editor material in EDL files from Blender.
+Export Video Sequencer Editor(VSE) material in CMX 3600 EDL from Blender to ex. Premiere Pro, Final Cut Pro or Davinci Resolve.
 
 ![edl](https://github.com/tin2tin/ExportEDL/blob/master/edl.png "Blender EDL Export")
 
@@ -11,7 +11,7 @@ https://www.youtube.com/watch?v=WdyMN9tQ21k
 File > Export > Timeline(.edl)
 
 # Before Exporting
-The script will export one .edl file pr. track, so before exporting, merge channels into as few as possible. The Edl format has very limited opportunities to indicate tracks separation(actually only one video and 4 audio).
+The script will export one .edl file containing one video channel and four audio channels, so flatten your channels before export. 
 
 # Import an EDL in Davinci Resolve
 - Set the project framerate to the framerate of the EDL(the edl files do not carry this information)
