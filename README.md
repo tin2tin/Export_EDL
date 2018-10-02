@@ -8,7 +8,7 @@ Export Video Sequencer Editor(VSE) material in CMX 3600 EDL from Blender to ex. 
 https://www.youtube.com/watch?v=WdyMN9tQ21k
 
 # Location
-File > Export > Timeline(.edl)
+Sequencer > Strip Properties > Export EDL
 
 # Before Exporting
 The script will export one .edl file containing one video channel and four audio channels, so flatten your channels before export. 
