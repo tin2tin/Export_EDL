@@ -169,7 +169,7 @@ def checkFPS():
 def fr_error(self, context):
     render = bpy.context.scene.render
     fps = round((render.fps / render.fps_base), 3)   
-    self.layout.label("Framerate \'" + str(fps) + "\' not supported by EDL. "
+    self.layout.label(text="Framerate \'" + str(fps) + "\' not supported by EDL. "
             "Change to 24, 25, 30, 60.")
 
 
@@ -563,7 +563,7 @@ class ExportEDL(Operator, ExportHelper):
     # ExportHelper mixin class uses this
     filename_ext = ".edl"
 
-    filter_glob = StringProperty(
+    filter_glob: StringProperty(
             default="*.edl",
             options={'HIDDEN'},
             maxlen=255,  # Max internal buffer length, longer would be clamped.
@@ -571,7 +571,7 @@ class ExportEDL(Operator, ExportHelper):
 
     # List of operator properties, the attributes will be assigned
     # to the class instance from the operator settings before calling.
-    use_setting = BoolProperty(
+    use_setting: BoolProperty(
             name="EDL Boolean",
             description="EDL Tooltip",
             default=True,
