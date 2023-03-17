@@ -3,7 +3,7 @@ Export Video Sequencer Editor(VSE) material in CMX 3600 EDL from Blender to ex. 
 
 ![edl](https://github.com/tin2tin/ExportEDL/blob/master/edl.png "Blender EDL Export")
 
-# Tutorial Video
+## Tutorial Video
 [![YouTube EDL](https://github.com/tin2tin/ExportEDL/blob/master/yt_edl.png)](https://www.youtube.com/watch?v=WdyMN9tQ21k)
 https://www.youtube.com/watch?v=WdyMN9tQ21k
 
