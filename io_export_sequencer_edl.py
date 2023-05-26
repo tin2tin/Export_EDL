@@ -271,7 +271,7 @@ class TimeCode:
         return self
 
     def as_frame(self):
-        abs_frame = self.frame
+        abs_frame = int(self.frame)
         abs_frame += self.seconds * self.fps
         abs_frame += self.minutes * 60 * self.fps
         abs_frame += self.hours * 60 * 60 * self.fps
